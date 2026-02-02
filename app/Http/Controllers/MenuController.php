@@ -30,20 +30,20 @@ class MenuController extends Controller
         $menuId = $request->input('id');
         $menu = Item::find($menuId);
 
-        if (!$menu){
-            return redirect()->back()->with('error', 'Menu tidak ditemukan.');
+        if (!$menu) {
+            return response()->json(['status' => 'Error', 'message' => 'Menu tidak ditemukan.']);
         }
 
-        $cart = Session::get('cart');
+        $cart = Session::get('cart', []);
 
-        if(isset($cart[$menuId])){
+        if (isset($cart[$menuId])) {
             $cart[$menuId]['qty'] += 1;
         } else {
             $cart[$menuId] = [
                 'id' => $menu->id,
                 'name' => $menu->name,
                 'price' => $menu->price,
-                'image' => $menu->img,
+                'image' => 'img_item_upload/' . $menu->img,
                 'qty' => 1
             ];
         }
@@ -51,5 +51,42 @@ class MenuController extends Controller
         Session::put('cart', $cart);
 
         return response()->json(['status' => 'Success.', 'message' => 'Berhasil ditambahkan ke keranjang.']);
+    }
+
+    public function updateCart(Request $request)
+    {
+        $itemId = $request->input('id');
+        $newQty = $request->input('qty');
+
+        if ($newQty <= 0) {
+            return response()->json(['success' => false]);
+        }
+
+        $cart = Session::get('cart', []);
+        if (isset($cart[$itemId])) {
+            $cart[$itemId]['qty'] = $newQty;
+            Session::put('cart', $cart);
+            Session::flash('success', 'Jumlah item berhasil diperbarui.');
+            return response()->json(['success' => true]);
+        }
+        return response()->json(['success' => false]);
+    }
+
+    public function removeCart(Request $request) {
+        $itemId = $request->input('id');
+
+        $cart = Session::get('cart', []);
+
+        if (isset($cart[$itemId])) {
+            unset($cart[$itemId]);
+            Session::put('cart', $cart);
+            Session::flash('success', 'Item berhasil dihapus dari keranjang.');
+            return response()->json(['success' => true]);
+        }
+    }
+
+    public function clearCart() {
+        Session::forget('cart');
+        return redirect()->route('cart')->with('success', 'Keranjang berhasil dikosongkan.');
     }
 }
