@@ -1,6 +1,14 @@
 @extends('customer.layouts.master')
 
 @section('content')
+    <!-- Single Page Header start -->
+    <div class="container-fluid page-header py-5">
+        <h1 class="text-center text-white display-6">Menu</h1>
+        <ol class="breadcrumb justify-content-center mb-0">
+            <li class="breadcrumb-item active text-primary">Berbagai Menu</li>
+        </ol>
+    </div>
+    <!-- Single Page Header End -->
     <!-- Fruits Shop Start-->
     <div class="container-fluid fruite py-5">
         <div class="container py-5">
@@ -26,7 +34,8 @@
                                                 <div class="d-flex justify-content-between flex-lg-wrap">
                                                     <p class="text-dark fs-5 fw-bold mb-0">
                                                         {{ 'Rp' . number_format($item->price, 0, ',', '.') }}</p>
-                                                    <a href="#" onclick="event.preventDefault(); addToCart({{ $item->id }})"
+                                                    <a href="#"
+                                                        onclick="event.preventDefault(); addToCart({{ $item->id }})"
                                                         class="btn border border-secondary rounded-pill px-3 text-primary"><i
                                                             class="fa fa-shopping-bag me-2 text-primary"></i> Tambah
                                                         Keranjang</a>
@@ -64,8 +73,8 @@
                     alert(data.message);
                 })
                 .catch((error) => {
-                        console.error('Error:', error);
-                    });
+                    console.error('Error:', error);
+                });
         }
     </script>
 @endsection
