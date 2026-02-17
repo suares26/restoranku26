@@ -77,7 +77,8 @@ class MenuController extends Controller
         return response()->json(['success' => false]);
     }
 
-    public function removeCart(Request $request) {
+    public function removeCart(Request $request)
+    {
         $itemId = $request->input('id');
 
         $cart = Session::get('cart', []);
@@ -90,7 +91,8 @@ class MenuController extends Controller
         }
     }
 
-    public function clearCart() {
+    public function clearCart()
+    {
         Session::forget('cart');
         return redirect()->route('cart')->with('success', 'Keranjang berhasil dikosongkan.');
     }
@@ -137,16 +139,18 @@ class MenuController extends Controller
 
             $itemDetails[] = [
                 'id' => $item['id'],
-                'name' => substr($item['name'], 0, 50),
-                'price' => (int) $item['price'] + ($item['price'] * 0.1),
+                'price' => (int) ($item['price'] + ($item['price'] * 0.1)),
                 'quantity' => $item['qty'],
+                'name' => substr($item['name'], 0, 50),
             ];
         }
 
-        $user = User::firstOrCreate([
-            'full_name' => $request->input('fullname'),
-            'phone' => $request->input('phone'),
-            'role_id' => 4 ]
+        $user = User::firstOrCreate(
+            [
+                'full_name' => $request->input('fullname'),
+                'phone' => $request->input('phone'),
+                'role_id' => 4
+            ]
         );
 
         $order = Order::create([
@@ -161,7 +165,7 @@ class MenuController extends Controller
             'notes' => $request->notes ?? null
         ]);
 
-        foreach($cart as $ItemId => $item) {
+        foreach ($cart as $ItemId => $item) {
             OrderItem::create([
                 'order_id' => $order->id,
                 'item_id' => $item['id'],
@@ -173,8 +177,43 @@ class MenuController extends Controller
         }
 
         Session::forget('cart');
-        Session::flash('success', 'Pesanan berhasil dibuat.');
-        return redirect()->route('checkout.success', ['orderId' => $order->order_code])->with('success', 'Pesanan berhasil dibuat.');
+
+        if ($request->payment_method == 'tunai') {
+            return redirect()->route('checkout.success', ['orderId' => $order->order_code])->with('success', 'Pesanan berhasil dibuat.');
+        } else {
+            \Midtrans\Config::$serverKey = config('midtrans.server_key');
+            \Midtrans\Config::$isProduction = config('midtrans.is_production');
+            \Midtrans\Config::$isSanitized = true;
+            \Midtrans\Config::$is3ds = true;
+
+            $params = [
+                'transaction_details' => [
+                    'order_id' => $order->order_code,
+                    'gross_amount' => (int) $order->grand_total,
+                ],
+                'item_details' => $itemDetails,
+                'customer_details' => [
+                    'first_name' => $user->full_name ?? 'Guest',
+                    'phone' => $user->phone,
+                ],
+                'payment_type' => 'qris',
+            ];
+            try {
+                $snapToken = \Midtrans\Snap::getSnapToken($params);
+                return response()->json([
+                    'status' => 'Success',
+                    'snap_token' => $snapToken,
+                    'order_code' => $order->order_code
+                ]);
+            } catch (\Exception $e) {
+                // Kembalikan JSON juga saat error, dengan status 500 (Server Error)
+                return response()->json([
+                    'status' => 'Error',
+                    'message' => 'Gagal memproses pembayaran: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
     }
 
     public function checkoutSuccess($orderId)
@@ -185,11 +224,11 @@ class MenuController extends Controller
         }
         $orderItems = OrderItem::where('order_id', $order->id)->get();
 
-        if ($order->payment_method == 'qris'){
+        if ($order->payment_method == 'qris') {
             $order->status = 'settlement';
             $order->save();
         }
 
         return view('customer.success', compact('order', 'orderItems'));
-        }
+    }
 }
