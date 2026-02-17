@@ -21,19 +21,22 @@
                             <div class="col-md-12 col-lg-4">
                                 <div class="form-item w-100">
                                     <label class="form-label my-3">Nama Lengkap<sup>*</sup></label>
-                                    <input type="text" name="fullname" class="form-control" placeholder="Masukan nama Anda" required>
+                                    <input type="text" name="fullname" class="form-control"
+                                        placeholder="Masukan nama Anda" required>
                                 </div>
                             </div>
                             <div class="col-md-12 col-lg-4">
                                 <div class="form-item w-100">
                                     <label class="form-label my-3">Nomor WhatsApp<sup>*</sup></label>
-                                    <input type="text" name="phone" class="form-control" placeholder="Masukan nomor WhatsApp Anda" required>
+                                    <input type="text" name="phone" class="form-control"
+                                        placeholder="Masukan nomor WhatsApp Anda" required>
                                 </div>
                             </div>
                             <div class="col-md-12 col-lg-4">
                                 <div class="form-item w-100">
                                     <label class="form-label my-3">Nomor Meja<sup>*</sup></label>
-                                    <input type="text" class="form-control" value="{{ $tableNumber ?? 'Tidak ada nomor meja' }}" disabled required>
+                                    <input type="text" class="form-control"
+                                        value="{{ $tableNumber ?? 'Tidak ada nomor meja' }}" disabled required>
                                 </div>
                             </div>
                         </div>
@@ -122,7 +125,7 @@
                                         <div class="mb-3 pe-5">
                                             <div class="form-check">
                                                 <input type="radio" class="form-check-input bg-primary border-0"
-                                                    id="qris" name="payment" value="qris">
+                                                    id="qris" name="payment_method" value="qris">
                                                 <label class="form-check-label" for="qris">QRIS</label>
                                             </div>
                                             <div class="form-check">
@@ -135,7 +138,7 @@
                                 </div>
 
                                 <div class="d-flex justify-content-end">
-                                    <button type="submit"
+                                    <button type="button" id="pay-button"
                                         class="btn border-secondary py-3 text-uppercase text-primary">Konfirmasi
                                         Pesanan</button>
                                 </div>
@@ -148,4 +151,98 @@
         </div>
     </div>
     <!-- Checkout Page End -->
+
+    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="{{ env('MIDTRANS_CLIENT_KEY') }}">
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const payButton = document.getElementById("pay-button");
+            const form = document.querySelector("form");
+
+            payButton.addEventListener('click', function(event) {
+                // 1. PENTING: Cegah form submit otomatis (agar halaman tidak reload)
+                event.preventDefault();
+
+                // Ambil elemen radio button yang dipilih
+                const paymentInput = document.querySelector('input[name="payment_method"]:checked');
+
+                // Validasi jika belum pilih metode pembayaran
+                if (!paymentInput) {
+                    alert('Silakan pilih metode pembayaran.');
+                    return;
+                }
+
+                const paymentMethod = paymentInput.value;
+
+                // 2. Jika Tunai, submit form secara manual (biasa)
+                if (paymentMethod == "tunai") {
+                    form.submit();
+                    return; // Hentikan script di sini
+                }
+
+                // 3. Jika BUKAN Tunai (Midtrans), gunakan Fetch
+                let formData = new FormData(form);
+
+                fetch("{{ route('checkout.store') }}", {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            // Jangan set 'Content-Type': 'application/json' jika pakai FormData!
+                            // Biarkan browser mengaturnya otomatis (multipart/form-data).
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        }
+                    })
+                    .then(response => {
+                        // Cek status HTTP dulu (antisipasi error 500 dari controller tadi)
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Cek apakah controller mengirim status Error secara logika
+                        if (data.status === 'Error') {
+                            alert(data.message);
+                            return;
+                        }
+
+                        // Jika ada Snap Token, munculkan Popup
+                        if (data.snap_token) {
+                            window.snap.pay(data.snap_token, {
+                                onSuccess: function(result) {
+                                    alert("Pembayaran berhasil!");
+                                    // Pastikan key ini sesuai dengan return JSON controller ('order_id' atau 'order_code')
+                                    window.location.href = "/checkout/success/" + data
+                                        .order_code;
+                                },
+                                onPending: function(result) {
+                                    alert(
+                                        "Pembayaran tertunda. Silakan selesaikan pembayaran Anda."
+                                        );
+                                    window.location.href = "/checkout/success/" + data
+                                        .order_code;
+                                },
+                                onError: function(result) {
+                                    alert("Pembayaran gagal. Silakan coba lagi.");
+                                    console.error(result);
+                                },
+                                onClose: function() {
+                                    alert(
+                                        'Kamu menutup popup tanpa menyelesaikan pembayaran'
+                                        );
+                                }
+                            });
+                        } else {
+                            alert("Gagal mendapatkan Token Pembayaran.");
+                        }
+                    })
+                    .catch(error => {
+                        // Catch error dari Network atau Logic di atas
+                        console.error('Error:', error);
+                        alert("Terjadi kesalahan sistem saat memproses pembayaran.");
+                    });
+            });
+        });
+    </script>
 @endsection

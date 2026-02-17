@@ -11,7 +11,7 @@
 
 
     <!-- Navbar start -->
-    @include('customer.layouts.__navbar')
+    @include('customer.layouts.__sidebar')
     <!-- Navbar End -->
 
     @yield('content')
